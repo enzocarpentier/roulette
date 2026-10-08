@@ -11,9 +11,13 @@ import {
   getNumberColor,
   DEFAULT_STRATEGY_CONFIG
 } from '../constants/roulette';
+import { getCryptoRouletteNumber } from './cryptoRng';
 
-// Tirage pseudo-aléatoire équitable d'une roulette européenne (0-36)
+// Tirage matériel cryptographique non biaisé de niveau casino (0-36)
 export function getRandomRouletteNumber(): number {
+  if (typeof window !== 'undefined' && window.crypto) {
+    return getCryptoRouletteNumber();
+  }
   return Math.floor(Math.random() * 37);
 }
 
