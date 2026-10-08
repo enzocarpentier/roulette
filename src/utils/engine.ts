@@ -9,7 +9,8 @@ import {
 } from '../types/roulette';
 import {
   getNumberColor,
-  DEFAULT_STRATEGY_CONFIG
+  DEFAULT_STRATEGY_CONFIG,
+  RED_NUMBERS
 } from '../constants/roulette';
 import { getCryptoRouletteNumber } from './cryptoRng';
 
@@ -386,10 +387,16 @@ export function runBatch(
   return { finalState: state, logs, bankrollCurve };
 }
 
-// Simulation Monte Carlo : exécute M sessions de N tirages chacune
+// Lookup rapide pour vitesse maximale dans la boucle Monte Carlo
+const IS_RED_TABLE = new Uint8Array(37);
+RED_NUMBERS.forEach((n) => {
+  IS_RED_TABLE[n] = 1;
+});
+
+// Simulation Monte Carlo Haute-Performance : capable d'exécuter des millions de tirages en quelques millisecondes
 export function runMonteCarloSimulation(
   config: StrategyConfig,
-  totalRuns: number = 200,
+  totalRuns: number = 500,
   spinsPerRun: number = 500
 ): { summary: MonteCarloSummary; runs: MonteCarloRun[] } {
   const runs: MonteCarloRun[] = [];
@@ -397,40 +404,120 @@ export function runMonteCarloSimulation(
   let profitableRuns = 0;
   let totalFinalBankroll = 0;
   let totalCrashes = 0;
+  let maxDrawdownOverall = 0;
   let bestOutcome = -Infinity;
   let worstOutcome = Infinity;
 
   const finalBankrolls: number[] = [];
+  const progression = config.betProgression;
+  const maxSteps = config.maxSteps;
+  const trigger = config.consecutiveTrigger;
+  const initialBankroll = config.initialBankroll;
 
   for (let r = 0; r < totalRuns; r++) {
-    let state = createInitialEngine(config);
+    let bankroll = initialBankroll;
+    let phase = 0; // 0 = OBSERVATION, 1 = BETTING
+    let streakColor = 0; // 0 = none, 1 = red, 2 = black
+    let streakCount = 0;
+    let currentStep = 0;
+    let targetColor = 0; // 1 = red, 2 = black
+    let crashesCount = 0;
+    let wonCount = 0;
+    let peak = bankroll;
+    let maxDrawdown = 0;
+    let isBroke = false;
 
     for (let s = 0; s < spinsPerRun; s++) {
-      if (state.isBroke) break;
-      const { newState } = stepEngine(state);
-      state = newState;
+      // Tirage rapide d'un numéro 0-36
+      const roll = (Math.random() * 37) | 0;
+      const rollColor = roll === 0 ? 0 : IS_RED_TABLE[roll] === 1 ? 1 : 2;
+
+      if (phase === 0) {
+        // Phase d'observation
+        if (rollColor === 0) {
+          streakColor = 0;
+          streakCount = 0;
+        } else if (rollColor === streakColor) {
+          streakCount++;
+        } else {
+          streakColor = rollColor;
+          streakCount = 1;
+        }
+
+        if (streakCount >= trigger && streakColor !== 0) {
+          phase = 1;
+          targetColor = streakColor === 1 ? 2 : 1; // Pari sur la couleur opposée
+          currentStep = 1;
+        }
+      } else {
+        // Phase de mise active
+        const bet = progression[currentStep - 1] || progression[progression.length - 1];
+
+        if (bankroll < bet) {
+          isBroke = true;
+          bankroll = 0;
+          break;
+        }
+
+        if (rollColor === targetColor) {
+          // Gain
+          bankroll += bet;
+          wonCount++;
+          phase = 0;
+          currentStep = 0;
+          streakColor = rollColor;
+          streakCount = 1;
+        } else {
+          // Perte
+          bankroll -= bet;
+          if (currentStep < maxSteps) {
+            currentStep++;
+          } else {
+            // Plafond de mise atteint (Crash)
+            crashesCount++;
+            phase = 0;
+            currentStep = 0;
+            streakColor = rollColor;
+            streakCount = rollColor === 0 ? 0 : 1;
+          }
+        }
+
+        if (bankroll > peak) peak = bankroll;
+        const dd = peak - bankroll;
+        if (dd > maxDrawdown) maxDrawdown = dd;
+
+        if (bankroll <= 0) {
+          isBroke = true;
+          bankroll = 0;
+          break;
+        }
+      }
     }
 
-    const netProfit = state.bankroll - config.initialBankroll;
-    if (state.isBroke || state.bankroll <= 0) ruinCount++;
+    const netProfit = bankroll - initialBankroll;
+    if (isBroke || bankroll <= 0) ruinCount++;
     if (netProfit > 0) profitableRuns++;
 
-    totalFinalBankroll += state.bankroll;
-    totalCrashes += state.stats.cycles.cyclesLost;
-    finalBankrolls.push(state.bankroll);
+    totalFinalBankroll += bankroll;
+    totalCrashes += crashesCount;
+    finalBankrolls.push(bankroll);
 
+    if (maxDrawdown > maxDrawdownOverall) maxDrawdownOverall = maxDrawdown;
     if (netProfit > bestOutcome) bestOutcome = netProfit;
     if (netProfit < worstOutcome) worstOutcome = netProfit;
 
-    runs.push({
-      runId: r + 1,
-      finalBankroll: state.bankroll,
-      netProfit,
-      isBroke: state.isBroke,
-      maxDrawdown: state.stats.maxDrawdown,
-      crashesCount: state.stats.cycles.cyclesLost,
-      cyclesWonCount: state.stats.cycles.cyclesWon,
-    });
+    // Conserver jusqu'à 2 000 runs individuels pour éviter de saturer la RAM
+    if (r < 2000) {
+      runs.push({
+        runId: r + 1,
+        finalBankroll: bankroll,
+        netProfit,
+        isBroke,
+        maxDrawdown,
+        crashesCount,
+        cyclesWonCount: wonCount,
+      });
+    }
   }
 
   finalBankrolls.sort((a, b) => a - b);
@@ -448,6 +535,8 @@ export function runMonteCarloSimulation(
     bestOutcome,
     worstOutcome,
     averageCrashes: totalCrashes / totalRuns,
+    totalCrashes,
+    maxDrawdownOverall,
   };
 
   return { summary, runs };

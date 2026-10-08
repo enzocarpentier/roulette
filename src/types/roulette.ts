@@ -92,4 +92,6 @@ export interface MonteCarloSummary {
   bestOutcome: number;
   worstOutcome: number;
   averageCrashes: number;
+  totalCrashes: number;
+  maxDrawdownOverall: number;
 }

@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
 import { StrategyConfig, MonteCarloSummary, MonteCarloRun } from '../types/roulette';
 import { runMonteCarloSimulation } from '../utils/engine';
-import { Play, X, BarChart3, ShieldCheck, Skull, DollarSign, Activity } from 'lucide-react';
+import { computeProgression } from '../constants/roulette';
+import {
+  Play,
+  X,
+  ShieldCheck,
+  Skull,
+  DollarSign,
+  Activity,
+  AlertTriangle,
+  Flame,
+  Coins,
+  Eye,
+  Wallet,
+} from 'lucide-react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -19,8 +32,15 @@ interface MonteCarloModalProps {
 }
 
 export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClose, config }) => {
-  const [runsCount, setRunsCount] = useState<number>(300);
-  const [spinsPerRun, setSpinsPerRun] = useState<number>(500);
+  // Paramètres de volume poussés à l'extrême
+  const [runsCount, setRunsCount] = useState<number>(1000);
+  const [spinsPerRun, setSpinsPerRun] = useState<number>(1000);
+
+  // Paramètres de stratégie personnalisables dans le stress-test
+  const [baseBet, setBaseBet] = useState<number>(config.baseBet);
+  const [consecutiveTrigger, setConsecutiveTrigger] = useState<number>(config.consecutiveTrigger);
+  const [initialBankroll, setInitialBankroll] = useState<number>(config.initialBankroll);
+
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [result, setResult] = useState<{ summary: MonteCarloSummary; runs: MonteCarloRun[] } | null>(
     null
@@ -30,33 +50,51 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
 
   const handleRunSimulation = () => {
     setIsRunning(true);
-    // Timeout pour permettre au navigateur d'afficher le spinner
     setTimeout(() => {
-      const simResult = runMonteCarloSimulation(config, runsCount, spinsPerRun);
+      // Calculer la progression jusqu'au plafond de 640€
+      const progression = computeProgression(baseBet);
+      const testConfig: StrategyConfig = {
+        ...config,
+        baseBet,
+        consecutiveTrigger,
+        initialBankroll,
+        maxSteps: progression.length,
+        betProgression: progression,
+      };
+
+      const simResult = runMonteCarloSimulation(testConfig, runsCount, spinsPerRun);
       setResult(simResult);
       setIsRunning(false);
-    }, 50);
+    }, 40);
   };
 
-  // Préparer les données pour l'histogramme de distribution des profits
+  // Histogramme dynamique adapté au capital
   const getHistogramData = () => {
     if (!result) return [];
+    const b = initialBankroll;
     const buckets: Record<string, number> = {
-      '<-1000€ (Crashs)': 0,
-      '-1000 à -500€': 0,
-      '-500 à 0€': 0,
-      '0 à +200€': 0,
-      '+200 à +500€': 0,
-      '>+500€': 0,
+      'Ruine totale (0€)': 0,
+      [`Perte forte (<-${Math.round(b * 0.5)}€)`]: 0,
+      'Légère perte': 0,
+      'Petit gain (+1 à +200€)': 0,
+      'Bon gain (+200 à +1000€)': 0,
+      'Jackpot (>+1000€)': 0,
     };
 
     result.runs.forEach((r) => {
-      if (r.netProfit <= -1000) buckets['<-1000€ (Crashs)']++;
-      else if (r.netProfit < -500) buckets['-1000 à -500€']++;
-      else if (r.netProfit < 0) buckets['-500 à 0€']++;
-      else if (r.netProfit <= 200) buckets['0 à +200€']++;
-      else if (r.netProfit <= 500) buckets['+200 à +500€']++;
-      else buckets['>+500€']++;
+      if (r.finalBankroll <= 0 || r.isBroke) {
+        buckets['Ruine totale (0€)']++;
+      } else if (r.netProfit <= -Math.round(b * 0.5)) {
+        buckets[`Perte forte (<-${Math.round(b * 0.5)}€)`]++;
+      } else if (r.netProfit < 0) {
+        buckets['Légère perte']++;
+      } else if (r.netProfit <= 200) {
+        buckets['Petit gain (+1 à +200€)']++;
+      } else if (r.netProfit <= 1000) {
+        buckets['Bon gain (+200 à +1000€)']++;
+      } else {
+        buckets['Jackpot (>+1000€)']++;
+      }
     });
 
     return Object.entries(buckets).map(([range, count]) => ({
@@ -65,144 +103,260 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
     }));
   };
 
+  const progressionPreview = computeProgression(baseBet);
+  const maxLossSequence = progressionPreview.reduce((a, b) => a + b, 0);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md">
+      <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
               <Activity className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-100">
-                Stress-Test Monte Carlo (Simulations Massives)
+              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>Stress-Test Monte Carlo Extrême</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  Jusqu'à 10 000 Sessions
+                </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Tester la stratégie sur des centaines de joueurs indépendants
+                Simulez des cohortes massives de joueurs pour tester la résistance mathématique du système
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Paramètres du test */}
-        <div className="mt-4 p-4 rounded-2xl bg-slate-950/60 border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">
-              Nombre de Joueurs (Sessions)
-            </label>
-            <select
-              value={runsCount}
-              onChange={(e) => setRunsCount(Number(e.target.value))}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-purple-500"
-            >
-              <option value={100}>100 Joueurs</option>
-              <option value={300}>300 Joueurs</option>
-              <option value={500}>500 Joueurs</option>
-              <option value={1000}>1 000 Joueurs</option>
-            </select>
+        {/* 1. PARAMÈTRES POUSSÉS À L'EXTRÊME */}
+        <div className="mt-4 p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
+          <div className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+            <Flame className="w-4 h-4 text-purple-400" />
+            Paramètres du Test & Stratégie
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">
-              Tirages par Session
-            </label>
-            <select
-              value={spinsPerRun}
-              onChange={(e) => setSpinsPerRun(Number(e.target.value))}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-purple-500"
-            >
-              <option value={200}>200 Tours (~2 heures)</option>
-              <option value={500}>500 Tours (~5 heures)</option>
-              <option value={1000}>1 000 Tours (~10 heures)</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Volume Joueurs */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                Nombre de Joueurs
+              </label>
+              <select
+                value={runsCount}
+                onChange={(e) => setRunsCount(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value={100}>100 Joueurs</option>
+                <option value={500}>500 Joueurs</option>
+                <option value={1000}>1 000 Joueurs</option>
+                <option value={2500}>2 500 Joueurs</option>
+                <option value={5000}>5 000 Joueurs</option>
+                <option value={10000}>10 000 Joueurs (Extrême)</option>
+              </select>
+            </div>
+
+            {/* Tirages par Session */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                Tours par Session
+              </label>
+              <select
+                value={spinsPerRun}
+                onChange={(e) => setSpinsPerRun(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value={200}>200 Tours (~2h)</option>
+                <option value={500}>500 Tours (~5h)</option>
+                <option value={1000}>1 000 Tours (~10h)</option>
+                <option value={2500}>2 500 Tours (~25h)</option>
+                <option value={5000}>5 000 Tours (~50h)</option>
+                <option value={10000}>10 000 Tours (~100h)</option>
+              </select>
+            </div>
+
+            {/* Somme de Mise de Départ */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                <Coins className="w-3 h-3 text-amber-400" />
+                Mise de Départ
+              </label>
+              <select
+                value={baseBet}
+                onChange={(e) => setBaseBet(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-amber-300 focus:outline-none focus:border-amber-500"
+              >
+                <option value={1}>1 €</option>
+                <option value={2}>2 €</option>
+                <option value={5}>5 € (défaut)</option>
+                <option value={10}>10 €</option>
+                <option value={20}>20 €</option>
+                <option value={50}>50 €</option>
+              </select>
+            </div>
+
+            {/* Tours de répète avant de miser (Trigger) */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                <Eye className="w-3 h-3 text-blue-400" />
+                Tours Observés (Répète)
+              </label>
+              <select
+                value={consecutiveTrigger}
+                onChange={(e) => setConsecutiveTrigger(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-blue-300 focus:outline-none focus:border-blue-500"
+              >
+                <option value={1}>1 fois (immédiat)</option>
+                <option value={2}>2 fois (défaut)</option>
+                <option value={3}>3 fois d'affilée</option>
+                <option value={4}>4 fois d'affilée</option>
+                <option value={5}>5 fois d'affilée</option>
+                <option value={6}>6 fois d'affilée</option>
+              </select>
+            </div>
+
+            {/* Capital Initial */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                <Wallet className="w-3 h-3 text-emerald-400" />
+                Capital Initial
+              </label>
+              <select
+                value={initialBankroll}
+                onChange={(e) => setInitialBankroll(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-emerald-300 focus:outline-none focus:border-emerald-500"
+              >
+                <option value={500}>500 €</option>
+                <option value={1000}>1 000 € (défaut)</option>
+                <option value={1500}>1 500 €</option>
+                <option value={3000}>3 000 €</option>
+                <option value={5000}>5 000 €</option>
+                <option value={10000}>10 000 €</option>
+              </select>
+            </div>
           </div>
 
-          <button
-            onClick={handleRunSimulation}
-            disabled={isRunning}
-            className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-purple-900/30"
-          >
-            {isRunning ? (
-              <span className="animate-pulse">Calcul en cours...</span>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Lancer l'Analyse
-              </>
-            )}
-          </button>
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 border-t border-slate-800">
+            <div>
+              Volume total du test :{' '}
+              <strong className="text-white">
+                {(runsCount * spinsPerRun).toLocaleString()} tirages simulés
+              </strong>{' '}
+              • Plafond : <strong className="text-amber-400">640 €</strong> ({progressionPreview.length} paliers / Perte max séquence : -{maxLossSequence.toLocaleString()} €)
+            </div>
+
+            <button
+              onClick={handleRunSimulation}
+              disabled={isRunning}
+              className="py-2.5 px-6 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-xs flex items-center gap-2 transition shadow-lg shadow-purple-900/30 cursor-pointer"
+            >
+              {isRunning ? (
+                <span className="animate-pulse">Calcul de millions de tours...</span>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current" />
+                  Lancer le Test Extrême
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* Résultats */}
+        {/* 2. RÉSULTATS DU TEST */}
         {result && (
           <div className="mt-5 space-y-4">
-            {/* KPI Cards Monte Carlo */}
+            {/* Cartes KPI extrêmes */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                  <span>Joueurs Gagnants</span>
+                  <span>Joueurs en Profit</span>
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="text-xl font-black text-emerald-400">
+                <div className="text-xl sm:text-2xl font-black text-emerald-400">
                   {result.summary.profitableRate.toFixed(1)} %
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  {result.summary.profitableRuns} / {result.summary.totalRuns} en profit
+                  {result.summary.profitableRuns.toLocaleString()} / {result.summary.totalRuns.toLocaleString()} joueurs
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
                   <span>Taux de Ruine</span>
                   <Skull className="w-4 h-4 text-red-400" />
                 </div>
-                <div className="text-xl font-black text-red-400">
+                <div className="text-xl sm:text-2xl font-black text-red-400">
                   {result.summary.ruinRate.toFixed(1)} %
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  {result.summary.ruinCount} faillites totales
+                  {result.summary.ruinCount.toLocaleString()} faillites totales
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
                   <span>Solde Moyen Final</span>
                   <DollarSign className="w-4 h-4 text-amber-400" />
                 </div>
-                <div className="text-xl font-black text-slate-100">
-                  {Math.round(result.summary.averageFinalBankroll)} €
+                <div className="text-xl sm:text-2xl font-black text-slate-100">
+                  {Math.round(result.summary.averageFinalBankroll).toLocaleString()} €
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  Départ : {config.initialBankroll} €
+                  Départ : {initialBankroll.toLocaleString()} €
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                  <span>Crashs Moyens/Joueur</span>
-                  <BarChart3 className="w-4 h-4 text-purple-400" />
+                  <span>Total Crashs Plafond</span>
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
                 </div>
-                <div className="text-xl font-black text-purple-300">
-                  {result.summary.averageCrashes.toFixed(2)}
+                <div className="text-xl sm:text-2xl font-black text-red-400">
+                  {result.summary.totalCrashes.toLocaleString()}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Séries de 8 pertes</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  Moyenne : {result.summary.averageCrashes.toFixed(2)} / joueur
+                </div>
               </div>
             </div>
 
-            {/* Distribution Chart */}
+            {/* Extrêmes observés */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Meilleur résultat individuel :</span>
+                <div className="text-base font-black text-emerald-400 mt-0.5">
+                  +{result.summary.bestOutcome.toLocaleString()} €
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Pire résultat individuel :</span>
+                <div className="text-base font-black text-red-400 mt-0.5">
+                  {result.summary.worstOutcome.toLocaleString()} €
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <span className="text-slate-400">Pire Drawdown (chute max) :</span>
+                <div className="text-base font-black text-amber-400 mt-0.5">
+                  -{result.summary.maxDrawdownOverall.toLocaleString()} €
+                </div>
+              </div>
+            </div>
+
+            {/* Histogramme de distribution */}
             <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">
-                Distribution des Profits / Pertes sur les {result.summary.totalRuns} Joueurs
+                Distribution des Résultats sur les {result.summary.totalRuns.toLocaleString()} Joueurs
               </h4>
-              <div className="h-48 w-full">
+              <div className="h-52 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={getHistogramData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -215,7 +369,10 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
                           return (
                             <div className="bg-slate-900 border border-slate-700 p-2 rounded-lg text-xs">
                               <span className="font-bold text-slate-200">{item.range}</span> :{' '}
-                              <span className="text-purple-400 font-bold">{item.count} joueurs</span>
+                              <span className="text-purple-400 font-bold">
+                                {item.count.toLocaleString()} joueurs (
+                                {((item.count / result.summary.totalRuns) * 100).toFixed(1)}%)
+                              </span>
                             </div>
                           );
                         }
@@ -226,15 +383,6 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-
-            {/* Analyse Mathématique Explicative */}
-            <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-900/50 text-xs text-purple-200 leading-relaxed">
-              <strong className="text-white">Analyse mathématique du système :</strong>
-              <p className="mt-1">
-                Chaque cycle gagné rapporte <strong>+5 €</strong>. Un échec au 8ème palier (640 €) coûte exactement <strong>-1 275 €</strong>. Il faut donc réussir{' '}
-                <strong>255 cycles consécutifs sans aucun crash</strong> pour rentabiliser une seule série noire.
-              </p>
             </div>
           </div>
         )}
