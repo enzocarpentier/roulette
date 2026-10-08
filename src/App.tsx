@@ -6,29 +6,31 @@ import {
   EngineState,
 } from './utils/engine';
 import { StrategyConfig } from './types/roulette';
-import { DEFAULT_STRATEGY_CONFIG } from './constants/roulette';
+import { DEFAULT_STRATEGY_CONFIG, computeProgression } from './constants/roulette';
 import { generateRandomHexSeed, sha256 } from './utils/cryptoRng';
 import { RealisticRouletteWheel } from './components/RealisticRouletteWheel';
 import { RouletteTable } from './components/RouletteTable';
 import { CasinoBillboard } from './components/CasinoBillboard';
 import { PhaseTracker } from './components/PhaseTracker';
 import { StatsCards } from './components/StatsCards';
+import { BetConfigBar } from './components/BetConfigBar';
 import { BankrollChart } from './components/BankrollChart';
 import { StepDistributionChart } from './components/StepDistributionChart';
 import { LiveControls } from './components/LiveControls';
 import { HistoryTable } from './components/HistoryTable';
 import { MonteCarloModal } from './components/MonteCarloModal';
-import { StrategyConfigModal } from './components/StrategyConfigModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { ProvablyFairModal } from './components/ProvablyFairModal';
 import {
-  Sparkles,
   BarChart3,
-  Settings,
   Database,
   AlertOctagon,
   RotateCcw,
   ShieldCheck,
+  LayoutGrid,
+  TrendingUp,
+  ListFilter,
+  BarChart2,
 } from 'lucide-react';
 
 export default function App() {
@@ -46,6 +48,9 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playSpeed, setPlaySpeed] = useState<number>(300);
 
+  // Onglet actif pour la partie inférieure (évite la surcharge visuelle)
+  const [activeTab, setActiveTab] = useState<'table' | 'chart' | 'history' | 'stats'>('table');
+
   // Provably Fair Cryptographic Seeds
   const [serverSeed, setServerSeed] = useState<string>('');
   const [serverSeedHash, setServerSeedHash] = useState<string>('');
@@ -53,7 +58,6 @@ export default function App() {
 
   // Modals
   const [showMonteCarlo, setShowMonteCarlo] = useState<boolean>(false);
-  const [showConfig, setShowConfig] = useState<boolean>(false);
   const [showSupabase, setShowSupabase] = useState<boolean>(false);
   const [showProvablyFair, setShowProvablyFair] = useState<boolean>(false);
 
@@ -72,7 +76,39 @@ export default function App() {
     sha256(nextSeed).then(setServerSeedHash);
   };
 
-  // Exécuter 1 tour avec physique et CSPRNG
+  // Changement direct de la mise de départ (ex: 1€, 2€, 5€, 10€, 20€...)
+  const handleChangeBaseBet = (newBaseBet: number) => {
+    const newProgression = computeProgression(newBaseBet, config.maxSteps);
+    const newConfig: StrategyConfig = {
+      ...config,
+      baseBet: newBaseBet,
+      betProgression: newProgression,
+    };
+    setConfig(newConfig);
+    setIsPlaying(false);
+    if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    const freshEngine = createInitialEngine(newConfig);
+    setEngineState(freshEngine);
+    setLastRolledNumber(null);
+    setBankrollCurve([{ spin: 0, bankroll: newConfig.initialBankroll, netProfit: 0 }]);
+  };
+
+  // Changement direct du capital de départ
+  const handleChangeBankroll = (newBankroll: number) => {
+    const newConfig: StrategyConfig = {
+      ...config,
+      initialBankroll: newBankroll,
+    };
+    setConfig(newConfig);
+    setIsPlaying(false);
+    if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    const freshEngine = createInitialEngine(newConfig);
+    setEngineState(freshEngine);
+    setLastRolledNumber(null);
+    setBankrollCurve([{ spin: 0, bankroll: newBankroll, netProfit: 0 }]);
+  };
+
+  // Exécuter 1 tour
   const handleSpinOne = (forcedNum?: number) => {
     if (engineState.isBroke) return;
 
@@ -114,22 +150,7 @@ export default function App() {
     const initial = createInitialEngine(config);
     setEngineState(initial);
     setLastRolledNumber(null);
-    setBankrollCurve([
-      { spin: 0, bankroll: config.initialBankroll, netProfit: 0 },
-    ]);
-  };
-
-  // Mise à jour de la configuration
-  const handleSaveConfig = (newConfig: StrategyConfig) => {
-    setConfig(newConfig);
-    setIsPlaying(false);
-    if (autoPlayRef.current) clearInterval(autoPlayRef.current);
-    const freshEngine = createInitialEngine(newConfig);
-    setEngineState(freshEngine);
-    setLastRolledNumber(null);
-    setBankrollCurve([
-      { spin: 0, bankroll: newConfig.initialBankroll, netProfit: 0 },
-    ]);
+    setBankrollCurve([{ spin: 0, bankroll: config.initialBankroll, netProfit: 0 }]);
   };
 
   // Gestion de la lecture continue
@@ -176,7 +197,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
-      {/* Header Casino Pro */}
+      {/* Header Clair et Épuré */}
       <header className="sticky top-0 z-40 bg-slate-950/90 border-b border-slate-800/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -186,58 +207,49 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
-                  Roulette Européenne Casino Pro
+                  Simulateur Roulette Européenne
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  CSPRNG Matériel & Physique 60 FPS
+                  Stratégie Martingale 8 Paliers
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Martingale 8 Paliers • Trigger 2 Consécutifs • Stop-Loss strict -1 275€
+                Trigger 2 couleurs identiques • Stop-Loss strict au 8ème tour
               </p>
             </div>
           </div>
 
-          {/* Outils et certifications dans le header */}
+          {/* Outils secondaires */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowProvablyFair(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/70 text-emerald-300 hover:text-emerald-200 border border-emerald-500/40 text-xs font-bold transition shadow-sm"
-              title="Audit cryptographique de la roulette"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline">Certifié</span> Provably Fair
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Provably Fair</span>
             </button>
 
             <button
               onClick={() => setShowMonteCarlo(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 text-purple-300 hover:text-purple-200 border border-purple-500/30 text-xs font-bold transition shadow-sm"
             >
-              <BarChart3 className="w-4 h-4 text-purple-400" />
-              <span className="hidden sm:inline">Stress-Test</span> Monte Carlo
+              <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
+              <span>Stress-Test (1000 Joueurs)</span>
             </button>
 
             <button
               onClick={() => setShowSupabase(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition"
             >
-              <Database className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline">Partage</span> Supabase
-            </button>
-
-            <button
-              onClick={() => setShowConfig(true)}
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition"
-              title="Paramètres de stratégie"
-            >
-              <Settings className="w-4 h-4" />
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Sauvegarder</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-5">
         {/* Alerte Ruine si faillite */}
         {engineState.isBroke && (
           <div className="p-4 rounded-2xl bg-red-950/60 border border-red-500/60 text-red-200 flex flex-wrap items-center justify-between gap-3 shadow-2xl">
@@ -254,7 +266,7 @@ export default function App() {
             </div>
             <button
               onClick={handleReset}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition shadow-lg"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition shadow-lg cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Recharger & Réinitialiser
@@ -262,89 +274,143 @@ export default function App() {
           </div>
         )}
 
-        {/* 1. KPIs Cards Overview */}
+        {/* 1. SÉLECTEUR DE MISE DE DÉPART ET CAPITAL (PROÉMINENT ET SIMPLE) */}
+        <BetConfigBar
+          baseBet={config.baseBet}
+          initialBankroll={config.initialBankroll}
+          onChangeBaseBet={handleChangeBaseBet}
+          onChangeBankroll={handleChangeBankroll}
+        />
+
+        {/* 2. 4 CARTES KPIS SIMPLES & LISIBLES */}
         <StatsCards stats={engineState.stats} />
 
-        {/* 2. DISPOSITIF CASINO RÉALISTE : ROUE PHYSIQUE CANVAS + TOTEM + PHASE TRACKER */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Colonne Gauche : Roue Physique Canvas 60 FPS (5 cols) */}
-          <div className="lg:col-span-5 space-y-4">
+        {/* 3. SCÈNE DE JEU PRINCIPALE (ROUE À GAUCHE + ÉTAT & COMMANDES À DROITE) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Roue Physique Canvas (5 cols) */}
+          <div className="lg:col-span-5">
             <RealisticRouletteWheel
               winningNumber={lastRolledNumber}
               isSpinning={isSpinning}
             />
           </div>
 
-          {/* Colonne Droite : Phase Tracker + Totem Casino (7 cols) */}
+          {/* État de la Stratégie & Commandes (7 cols) */}
           <div className="lg:col-span-7 space-y-4">
             <PhaseTracker state={engineState} />
+            <LiveControls
+              onSpinOne={handleSpinOne}
+              onSpinBatch={handleSpinBatch}
+              onReset={handleReset}
+              isPlaying={isPlaying}
+              onTogglePlay={togglePlay}
+              playSpeed={playSpeed}
+              onChangeSpeed={setPlaySpeed}
+              isBroke={engineState.isBroke}
+            />
+          </div>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-7">
-                <LiveControls
-                  onSpinOne={handleSpinOne}
-                  onSpinBatch={handleSpinBatch}
-                  onReset={handleReset}
-                  isPlaying={isPlaying}
-                  onTogglePlay={togglePlay}
-                  playSpeed={playSpeed}
-                  onChangeSpeed={setPlaySpeed}
-                  isBroke={engineState.isBroke}
+        {/* 4. ONGLETS DE VUE (ÉVITE LA SURCHARGE COGNITIVE) */}
+        <div className="space-y-4 pt-2">
+          {/* Barre d'onglets */}
+          <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-1 text-xs">
+            <button
+              onClick={() => setActiveTab('table')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold transition cursor-pointer ${
+                activeTab === 'table'
+                  ? 'bg-slate-900 border-t-2 border-emerald-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4 text-emerald-400" />
+              Tapis de Jeu & Jetons
+            </button>
+
+            <button
+              onClick={() => setActiveTab('chart')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold transition cursor-pointer ${
+                activeTab === 'chart'
+                  ? 'bg-slate-900 border-t-2 border-emerald-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              Graphique du Capital
+            </button>
+
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold transition cursor-pointer ${
+                activeTab === 'history'
+                  ? 'bg-slate-900 border-t-2 border-emerald-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <ListFilter className="w-4 h-4 text-emerald-400" />
+              Historique des Tours
+            </button>
+
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold transition cursor-pointer ${
+                activeTab === 'stats'
+                  ? 'bg-slate-900 border-t-2 border-emerald-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <BarChart2 className="w-4 h-4 text-amber-400" />
+              Totem & Stats Casino
+            </button>
+          </div>
+
+          {/* Contenu selon l'onglet actif */}
+          <div>
+            {activeTab === 'table' && (
+              <RouletteTable
+                activeBetColor={engineState.betColor}
+                activeBetAmount={activeBetAmount}
+                lastWinningNumber={lastRolledNumber}
+              />
+            )}
+
+            {activeTab === 'chart' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <div className="lg:col-span-8">
+                  <BankrollChart
+                    data={bankrollCurve}
+                    initialBankroll={config.initialBankroll}
+                  />
+                </div>
+                <div className="lg:col-span-4">
+                  <StepDistributionChart
+                    cycles={engineState.stats.cycles}
+                    maxSteps={config.maxSteps}
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'history' && (
+              <HistoryTable logs={engineState.history} />
+            )}
+
+            {activeTab === 'stats' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <CasinoBillboard history={engineState.history} />
+                <StepDistributionChart
+                  cycles={engineState.stats.cycles}
+                  maxSteps={config.maxSteps}
                 />
               </div>
-
-              <div className="md:col-span-5">
-                <CasinoBillboard history={engineState.history} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. TAPIS DE ROULETTE FRANÇAIS AVEC JETONS DYNAMIQUES */}
-        <div>
-          <RouletteTable
-            activeBetColor={engineState.betColor}
-            activeBetAmount={activeBetAmount}
-            lastWinningNumber={lastRolledNumber}
-          />
-        </div>
-
-        {/* 4. Graphiques d'analyse */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-7">
-            <BankrollChart
-              data={bankrollCurve}
-              initialBankroll={config.initialBankroll}
-            />
-          </div>
-          <div className="lg:col-span-5">
-            <StepDistributionChart
-              cycles={engineState.stats.cycles}
-              maxSteps={config.maxSteps}
-            />
-          </div>
-        </div>
-
-        {/* 5. Journal d'audit complet des tirages & Export CSV */}
-        <HistoryTable logs={engineState.history} />
-
-        {/* Note pédagogique & mathématique sur la stratégie */}
-        <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-xs text-slate-400 flex items-start gap-3">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="font-semibold text-slate-200">
-              Fiabilité et standard casino régulé :
-            </span>
-            <p>
-              Ce simulateur utilise l'API <strong>Web Cryptography (CSPRNG matériel)</strong> sans biais de modulo, garantissant exactement $p = 1/37 \approx 2.7027\%$ pour chaque alvéole. Le protocole <strong>Provably Fair (HMAC-SHA256)</strong> et le test statistique du <strong>Chi-Deux ($\chi^2$)</strong> vous assurent que chaque lancer est mathématiquement pur, indépendant et vérifiable.
-            </p>
+            )}
           </div>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="py-4 border-t border-slate-800/80 bg-slate-950 text-center text-xs text-slate-500">
-        Simulateur de Stratégie Roulette Européenne • React + Vite + Tailwind + Web Audio + Supabase
+        Simulateur de Stratégie Roulette Européenne • React + Vite + Tailwind + Web Audio
       </footer>
 
       {/* Modals */}
@@ -352,12 +418,6 @@ export default function App() {
         isOpen={showMonteCarlo}
         onClose={() => setShowMonteCarlo(false)}
         config={config}
-      />
-      <StrategyConfigModal
-        isOpen={showConfig}
-        onClose={() => setShowConfig(false)}
-        config={config}
-        onSave={handleSaveConfig}
       />
       <SupabaseSyncModal
         isOpen={showSupabase}

@@ -33,3 +33,13 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
 };
 
 export const CUMULATIVE_SEQUENCE_LOSS = 1275; // 5+10+20+40+80+160+320+640
+
+export function computeProgression(baseBet: number, maxSteps: number = 8): number[] {
+  const progression: number[] = [];
+  let current = baseBet;
+  for (let i = 0; i < maxSteps; i++) {
+    progression.push(current);
+    current *= 2;
+  }
+  return progression;
+}
