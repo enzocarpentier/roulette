@@ -110,6 +110,21 @@ export default function App() {
     setBankrollCurve([{ spin: 0, bankroll: newBankroll, netProfit: 0 }]);
   };
 
+  // Changement direct du déclencheur d'observation (tours consécutifs avant de jouer)
+  const handleChangeTrigger = (newTrigger: number) => {
+    const newConfig: StrategyConfig = {
+      ...config,
+      consecutiveTrigger: newTrigger,
+    };
+    setConfig(newConfig);
+    setIsPlaying(false);
+    if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    const freshEngine = createInitialEngine(newConfig);
+    setEngineState(freshEngine);
+    setLastRolledNumber(null);
+    setBankrollCurve([{ spin: 0, bankroll: newConfig.initialBankroll, netProfit: 0 }]);
+  };
+
   // Exécuter 1 tour
   const handleSpinOne = (forcedNum?: number) => {
     if (engineState.isBroke) return;
@@ -276,12 +291,14 @@ export default function App() {
           </div>
         )}
 
-        {/* 1. SÉLECTEUR DE MISE DE DÉPART ET CAPITAL (PROÉMINENT ET SIMPLE) */}
+        {/* 1. SÉLECTEUR DE MISE DE DÉPART, DÉCLENCHEUR ET CAPITAL */}
         <BetConfigBar
           baseBet={config.baseBet}
           initialBankroll={config.initialBankroll}
+          consecutiveTrigger={config.consecutiveTrigger}
           onChangeBaseBet={handleChangeBaseBet}
           onChangeBankroll={handleChangeBankroll}
+          onChangeTrigger={handleChangeTrigger}
         />
 
         {/* 2. 4 CARTES KPIS SIMPLES & LISIBLES */}

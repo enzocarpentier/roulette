@@ -88,45 +88,48 @@ export const PhaseTracker: React.FC<PhaseTrackerProps> = ({ state }) => {
       {/* 2. Ce qui se passe selon la phase */}
       {phase === 'OBSERVATION' ? (
         <div className="mt-4 p-4 bg-slate-950/50 rounded-2xl border border-slate-800/80">
-          <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+          <div className="text-xs font-semibold text-slate-300 mb-2 flex flex-wrap items-center justify-between gap-1">
             <span>Règle de déclenchement :</span>
-            <span className="text-slate-400 font-normal">
-              Il faut 2 fois la même couleur pour parier sur la couleur inverse.
+            <span className="text-blue-300 font-bold">
+              Attendre {config.consecutiveTrigger} fois la même couleur (Progression : {consecutiveCount} / {config.consecutiveTrigger})
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div
-              className={`p-3 rounded-xl border text-center transition ${
-                consecutiveCount >= 1 && consecutiveColor
-                  ? 'bg-slate-900 border-slate-600'
-                  : 'bg-slate-950 border-slate-800 opacity-50'
-              }`}
-            >
-              <div className="text-[11px] text-slate-400 font-medium">1er tirage identique</div>
-              <div className="text-sm font-bold mt-1">
-                {consecutiveCount >= 1 && consecutiveColor ? (
-                  <span className={consecutiveColor === 'red' ? 'text-red-400' : 'text-slate-200'}>
-                    ✓ 1 {consecutiveColor === 'red' ? 'Rouge' : 'Noir'}
-                  </span>
-                ) : (
-                  '...'
-                )}
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {Array.from({ length: config.consecutiveTrigger }, (_, i) => i + 1).map((step) => {
+              const isFilled = consecutiveCount >= step && consecutiveColor !== null;
+              const isTriggerStep = step === config.consecutiveTrigger;
 
-            <div
-              className={`p-3 rounded-xl border text-center transition ${
-                consecutiveCount >= 2
-                  ? 'bg-emerald-950/60 border-emerald-500 text-emerald-400'
-                  : 'bg-slate-950 border-slate-800 opacity-50'
-              }`}
-            >
-              <div className="text-[11px] text-slate-400 font-medium">2ème tirage (Trigger)</div>
-              <div className="text-sm font-bold mt-1">
-                {consecutiveCount >= 2 ? '⚡ DÉCLENCHÉ' : 'En attente...'}
-              </div>
-            </div>
+              return (
+                <div
+                  key={step}
+                  className={`flex-1 min-w-[80px] p-2.5 rounded-xl border text-center transition ${
+                    isFilled && isTriggerStep
+                      ? 'bg-emerald-950/60 border-emerald-500 text-emerald-400 font-bold shadow-lg shadow-emerald-900/20'
+                      : isFilled
+                      ? 'bg-slate-900 border-slate-600'
+                      : 'bg-slate-950 border-slate-800 opacity-50'
+                  }`}
+                >
+                  <div className="text-[10px] text-slate-400 font-medium">
+                    {isTriggerStep ? `${step}ème (Trigger)` : `${step}ème tirage`}
+                  </div>
+                  <div className="text-xs font-bold mt-1">
+                    {isFilled ? (
+                      isTriggerStep ? (
+                        '⚡ DÉCLENCHÉ'
+                      ) : (
+                        <span className={consecutiveColor === 'red' ? 'text-red-400' : 'text-slate-200'}>
+                          ✓ {consecutiveColor === 'red' ? 'Rouge' : 'Noir'}
+                        </span>
+                      )
+                    ) : (
+                      '...'
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : (
