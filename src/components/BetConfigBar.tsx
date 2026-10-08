@@ -15,7 +15,7 @@ export const BetConfigBar: React.FC<BetConfigBarProps> = ({
   onChangeBaseBet,
   onChangeBankroll,
 }) => {
-  const progression = computeProgression(baseBet, 8);
+  const progression = computeProgression(baseBet);
   const maxSequenceLoss = progression.reduce((a, b) => a + b, 0);
 
   const quickBets = [1, 2, 5, 10, 20, 50];
@@ -109,7 +109,7 @@ export const BetConfigBar: React.FC<BetConfigBarProps> = ({
       {/* Résumé clair des règles appliquées à cette mise */}
       <div className="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
         <div>
-          Progression x2 ({progression.length} tours) :{' '}
+          Progression x2 jusqu'au plafond de 640 € ({progression.length} tours) :{' '}
           <strong className="text-slate-200">{progression.join('€ ➔ ')}€</strong>
         </div>
         <div>

@@ -130,25 +130,28 @@ export const PhaseTracker: React.FC<PhaseTrackerProps> = ({ state }) => {
           </div>
         </div>
       ) : (
-        /* Échelle des 8 paliers limpide */
+        /* Échelle des paliers jusqu'au plafond de 640 € */
         <div className="mt-4 p-4 bg-slate-950/50 rounded-2xl border border-slate-800/80">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-2.5">
-            <span className="font-semibold text-slate-300">Échelle des 8 paliers de mise :</span>
+            <span className="font-semibold text-slate-300">
+              Progression x2 ({config.betProgression.length} paliers jusqu'au plafond) :
+            </span>
             <span className="text-red-400 font-medium">
               Plafond max : {config.betProgression[config.betProgression.length - 1]} € (Perte totale: {totalSequenceLoss} €)
             </span>
           </div>
 
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-            {config.betProgression.map((amount, idx) => {
+          <div className="flex flex-wrap gap-2">
+            {config.betProgression.map((amount: number, idx: number) => {
               const stepNum = idx + 1;
               const isActive = currentStep === stepNum;
               const isPast = currentStep > stepNum;
+              const isCeiling = idx === config.betProgression.length - 1;
 
               return (
                 <div
                   key={stepNum}
-                  className={`p-2.5 rounded-xl border text-center transition duration-200 ${
+                  className={`flex-1 min-w-[50px] p-2 rounded-xl border text-center transition duration-200 relative ${
                     isActive
                       ? 'bg-amber-500/20 border-amber-400 text-amber-300 ring-2 ring-amber-400/50 scale-105 z-10 shadow-lg'
                       : isPast
@@ -156,8 +159,13 @@ export const PhaseTracker: React.FC<PhaseTrackerProps> = ({ state }) => {
                       : 'bg-slate-900/60 border-slate-800 text-slate-500'
                   }`}
                 >
+                  {isCeiling && (
+                    <div className="text-[8px] font-black uppercase text-red-400 tracking-tighter">
+                      Plafond
+                    </div>
+                  )}
                   <div className="text-[10px] uppercase font-bold text-slate-400">T{stepNum}</div>
-                  <div className={`text-sm font-black mt-0.5 ${isActive ? 'text-amber-300 font-black text-base' : ''}`}>
+                  <div className={`text-xs sm:text-sm font-black mt-0.5 ${isActive ? 'text-amber-300 font-black' : ''}`}>
                     {amount}€
                   </div>
                 </div>
@@ -172,7 +180,7 @@ export const PhaseTracker: React.FC<PhaseTrackerProps> = ({ state }) => {
             </div>
             <div className="flex items-center gap-1.5 text-red-400 font-medium">
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              Si échec au Tour 8 : Arrêt strict (Stop-Loss de -{totalSequenceLoss} €)
+              Si échec au dernier tour ({config.betProgression[config.betProgression.length - 1]} €) : Arrêt strict (-{totalSequenceLoss} €)
             </div>
           </div>
         </div>

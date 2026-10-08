@@ -32,14 +32,27 @@ export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
   takeProfitBankroll: undefined,
 };
 
+export const CEILING_MAX_BET = 640; // Plafond absolu de mise
 export const CUMULATIVE_SEQUENCE_LOSS = 1275; // 5+10+20+40+80+160+320+640
 
-export function computeProgression(baseBet: number, maxSteps: number = 8): number[] {
+// Progression doublée s'arrêtant strictement au plafond absolu de 640 €
+export function computeProgression(baseBet: number, maxBetCeiling: number = CEILING_MAX_BET): number[] {
   const progression: number[] = [];
-  let current = baseBet;
-  for (let i = 0; i < maxSteps; i++) {
+  let current = Math.min(baseBet, maxBetCeiling);
+
+  while (current <= maxBetCeiling) {
     progression.push(current);
-    current *= 2;
+    if (current === maxBetCeiling) break;
+
+    const next = current * 2;
+    if (next <= maxBetCeiling) {
+      current = next;
+    } else {
+      // Si doubler dépasse 640€, le dernier palier est plafonné strictement à 640€
+      progression.push(maxBetCeiling);
+      break;
+    }
   }
+
   return progression;
 }

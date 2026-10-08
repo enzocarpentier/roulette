@@ -31,7 +31,7 @@ export const StepDistributionChart: React.FC<StepDistributionChartProps> = ({
   }
 
   chartData.push({
-    step: 'Crash T8',
+    step: 'Crash Plafond',
     wins: cycles.cyclesLost,
     type: 'crash',
   });

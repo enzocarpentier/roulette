@@ -79,10 +79,11 @@ export default function App() {
 
   // Changement direct de la mise de départ (ex: 1€, 2€, 5€, 10€, 20€...)
   const handleChangeBaseBet = (newBaseBet: number) => {
-    const newProgression = computeProgression(newBaseBet, config.maxSteps);
+    const newProgression = computeProgression(newBaseBet);
     const newConfig: StrategyConfig = {
       ...config,
       baseBet: newBaseBet,
+      maxSteps: newProgression.length,
       betProgression: newProgression,
     };
     setConfig(newConfig);
