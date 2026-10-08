@@ -22,7 +22,7 @@ export function getNumberColor(num: number): RouletteColor {
 
 // Configuration par défaut selon le cahier des charges exact
 export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
-  initialBankroll: 1500, // Suffisant pour absorber 1 crash à 1 275 €
+  initialBankroll: 1000,
   baseBet: 5,
   consecutiveTrigger: 2, // 2 couleurs identiques consécutives
   maxSteps: 8, // 8 paliers maximums
