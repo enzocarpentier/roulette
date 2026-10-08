@@ -21,6 +21,7 @@ import { HistoryTable } from './components/HistoryTable';
 import { MonteCarloModal } from './components/MonteCarloModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { ProvablyFairModal } from './components/ProvablyFairModal';
+import { DevFeedbackOverlay } from './components/DevFeedbackOverlay';
 import {
   BarChart3,
   Database,
@@ -196,7 +197,7 @@ export default function App() {
       : 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       {/* Header Clair et Épuré */}
       <header className="sticky top-0 z-40 bg-slate-950/90 border-b border-slate-800/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3">
@@ -435,6 +436,9 @@ export default function App() {
         onUpdateClientSeed={setClientSeed}
         onRotateServerSeed={handleRotateServerSeed}
       />
+
+      {/* Système d'annotation et commentaires dev n'importe où sur l'app */}
+      <DevFeedbackOverlay />
     </div>
   );
 }
