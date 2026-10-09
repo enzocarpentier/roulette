@@ -22,7 +22,9 @@ import { MonteCarloModal } from './components/MonteCarloModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { ProvablyFairModal } from './components/ProvablyFairModal';
 import { ActionLogsModal, ActionLogsPanel } from './components/ActionLogsModal';
+import { StrategySelectorModal } from './components/StrategySelectorModal';
 import { DevFeedbackOverlay } from './components/DevFeedbackOverlay';
+import { STRATEGY_DEFINITIONS, StrategyKey, StrategyDefinition } from './constants/strategies';
 import { logger, logRoundEvent } from './utils/actionLogger';
 import {
   BarChart3,
@@ -35,17 +37,41 @@ import {
   ListFilter,
   BarChart2,
   Terminal,
+  Compass,
 } from 'lucide-react';
 
 export default function App() {
-  const [config, setConfig] = useState<StrategyConfig>(DEFAULT_STRATEGY_CONFIG);
+  const [selectedStrategyKey, setSelectedStrategyKey] = useState<StrategyKey>(() => {
+    try {
+      return (localStorage.getItem('roulette_selected_strategy') as StrategyKey) || 'martingale_observation';
+    } catch {
+      return 'martingale_observation';
+    }
+  });
+
+  const [showStrategySelector, setShowStrategySelector] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('roulette_has_chosen_strategy');
+    } catch {
+      return false;
+    }
+  });
+
+  const [config, setConfig] = useState<StrategyConfig>(() => {
+    const savedStrat = typeof window !== 'undefined' ? localStorage.getItem('roulette_selected_strategy') as StrategyKey : null;
+    if (savedStrat && STRATEGY_DEFINITIONS[savedStrat]) {
+      return STRATEGY_DEFINITIONS[savedStrat].config;
+    }
+    return DEFAULT_STRATEGY_CONFIG;
+  });
+
   const [engineState, setEngineState] = useState<EngineState>(() =>
-    createInitialEngine(DEFAULT_STRATEGY_CONFIG)
+    createInitialEngine(config)
   );
 
   const [bankrollCurve, setBankrollCurve] = useState<
     { spin: number; bankroll: number; netProfit: number }[]
-  >([{ spin: 0, bankroll: DEFAULT_STRATEGY_CONFIG.initialBankroll, netProfit: 0 }]);
+  >([{ spin: 0, bankroll: config.initialBankroll, netProfit: 0 }]);
 
   const [lastRolledNumber, setLastRolledNumber] = useState<number | null>(null);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
@@ -97,6 +123,28 @@ export default function App() {
     const nextSeed = generateRandomHexSeed(32);
     setServerSeed(nextSeed);
     sha256(nextSeed).then(setServerSeedHash);
+  };
+
+  // Sélection d'une nouvelle stratégie depuis le Hub
+  const handleSelectStrategy = (strat: StrategyDefinition) => {
+    setSelectedStrategyKey(strat.id);
+    try {
+      localStorage.setItem('roulette_selected_strategy', strat.id);
+      localStorage.setItem('roulette_has_chosen_strategy', 'true');
+    } catch {}
+
+    const newConfig: StrategyConfig = { ...strat.config };
+    setConfig(newConfig);
+    setIsPlaying(false);
+    if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    const freshEngine = createInitialEngine(newConfig);
+    setEngineState(freshEngine);
+    setLastRolledNumber(null);
+    setBankrollCurve([{ spin: 0, bankroll: newConfig.initialBankroll, netProfit: 0 }]);
+    logger.log('CONFIG', `Stratégie activée : ${strat.name}`, {
+      details: `${strat.tagline} | Capital initial : ${newConfig.initialBankroll} € | Mise de base : ${newConfig.baseBet} €`,
+      bankroll: newConfig.initialBankroll,
+    });
   };
 
   // Changement direct de la mise de départ (ex: 1€, 2€, 5€, 10€, 20€...)
@@ -277,18 +325,26 @@ export default function App() {
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
                   Simulateur Roulette Européenne
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Stratégie Martingale 8 Paliers
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {STRATEGY_DEFINITIONS[selectedStrategyKey]?.name.split(' (')[0]}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Trigger 2 couleurs identiques • Stop-Loss strict au 8ème tour
+                {STRATEGY_DEFINITIONS[selectedStrategyKey]?.tagline}
               </p>
             </div>
           </div>
 
           {/* Outils secondaires */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowStrategySelector(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-black transition shadow-sm cursor-pointer"
+              title="Choisir ou changer de stratégie de roulette"
+            >
+              <Compass className="w-3.5 h-3.5 text-amber-400" />
+              <span>Stratégies</span>
+            </button>
             <button
               onClick={() => setShowProvablyFair(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition"
@@ -537,6 +593,13 @@ export default function App() {
       <ActionLogsModal
         isOpen={showActionLogs}
         onClose={() => setShowActionLogs(false)}
+      />
+      <StrategySelectorModal
+        isOpen={showStrategySelector}
+        onClose={() => setShowStrategySelector(false)}
+        currentStrategyId={selectedStrategyKey}
+        onSelectStrategy={handleSelectStrategy}
+        isInitialOnboarding={!localStorage.getItem('roulette_has_chosen_strategy')}
       />
 
       {/* Système d'annotation et commentaires dev n'importe où sur l'app */}

@@ -238,29 +238,69 @@ export function stepEngine(
     totalWagered += betAmount;
 
     // Résolution du pari
+    const strat = state.config.strategyType || 'martingale_observation';
+
     if (rolledColor === state.betColor) {
       // GAIN !
       roundOutcome = 'WIN';
       netProfitRound = betAmount; // Gain brut = 2x mise, donc net = +betAmount
       newBankroll += netProfitRound;
 
-      // Bénéfice net du cycle : Toujours égal à la mise de base (ex: 5 €)
-      roundCycleProfit = state.config.baseBet;
-      cycleEvent = 'WON';
+      if (strat === 'paroli') {
+        // PAROLI : double uniquement sur les gains
+        if (stepIdx < state.config.maxSteps) {
+          // Passe au palier suivant (10€ -> 20€ -> 40€)
+          newCurrentStep = stepIdx + 1;
+          cycleEvent = 'PROGRESSION';
+          newPhase = 'BETTING';
+          newBetColor = state.betColor;
+        } else {
+          // 3 victoires d'affilée complétées !
+          roundCycleProfit = betAmount;
+          cycleEvent = 'WON';
+          cycleStats.totalCycles++;
+          cycleStats.cyclesWon++;
+          cycleStats.stepWinDistribution[stepIdx] = (cycleStats.stepWinDistribution[stepIdx] || 0) + 1;
+          cycleStats.totalProfitFromWins += roundCycleProfit;
+          newPhase = 'BETTING';
+          newCurrentStep = 1;
+          newCycleLossAccumulated = 0;
+        }
+      } else if (strat === 'dalembert') {
+        // D'ALEMBERT : recule de 1 unité sur gain
+        roundCycleProfit = betAmount;
+        cycleEvent = 'WON';
+        cycleStats.totalCycles++;
+        cycleStats.cyclesWon++;
+        newCurrentStep = Math.max(1, stepIdx - 1);
+        newPhase = 'BETTING';
+        newBetColor = state.betColor;
+      } else if (strat === 'fibonacci') {
+        // FIBONACCI : recule de 2 crans sur gain
+        roundCycleProfit = betAmount;
+        cycleEvent = 'WON';
+        cycleStats.totalCycles++;
+        cycleStats.cyclesWon++;
+        newCurrentStep = Math.max(1, stepIdx - 2);
+        newPhase = 'BETTING';
+        newBetColor = state.betColor;
+      } else {
+        // MARTINGALE OBSERVATION (standard) : retour à l'observation
+        roundCycleProfit = state.config.baseBet;
+        cycleEvent = 'WON';
 
-      // Clôture du cycle
-      cycleStats.totalCycles++;
-      cycleStats.cyclesWon++;
-      cycleStats.stepWinDistribution[stepIdx] = (cycleStats.stepWinDistribution[stepIdx] || 0) + 1;
-      cycleStats.totalProfitFromWins += roundCycleProfit;
+        cycleStats.totalCycles++;
+        cycleStats.cyclesWon++;
+        cycleStats.stepWinDistribution[stepIdx] = (cycleStats.stepWinDistribution[stepIdx] || 0) + 1;
+        cycleStats.totalProfitFromWins += roundCycleProfit;
 
-      // Retour immédiat en phase d'observation : remise stricte des compteurs à 0
-      newPhase = 'OBSERVATION';
-      newBetColor = null;
-      newCurrentStep = 0;
-      newCycleLossAccumulated = 0;
-      newConsecutiveColor = null;
-      newConsecutiveCount = 0;
+        newPhase = 'OBSERVATION';
+        newBetColor = null;
+        newCurrentStep = 0;
+        newCycleLossAccumulated = 0;
+        newConsecutiveColor = null;
+        newConsecutiveCount = 0;
+      }
     } else {
       // PERTE
       roundOutcome = 'LOSS';
@@ -272,32 +312,52 @@ export function stepEngine(
       newBankroll -= lossAmount;
       newCycleLossAccumulated += lossAmount;
 
-      // Vérification du record de pertes consécutives
       if (stepIdx > consecutiveLossesRecord) {
         consecutiveLossesRecord = stepIdx;
       }
 
-      if (stepIdx < state.config.maxSteps) {
-        // Progression au palier suivant
-        newCurrentStep = stepIdx + 1;
-        cycleEvent = 'PROGRESSION';
-        // On reste sur la même couleur cible
-      } else {
-        // PLAFOND ATTEINT (8ème mise perdue = 640 €) : STOP-LOSS
+      if (strat === 'paroli') {
+        // PAROLI : sur perte, on revient immédiatement à la mise de base
         cycleEvent = 'CRASH_STOP_LOSS';
-        roundCycleProfit = -newCycleLossAccumulated;
-
+        roundCycleProfit = -betAmount;
         cycleStats.totalCycles++;
         cycleStats.cyclesLost++;
-        cycleStats.totalLossFromCrashes += newCycleLossAccumulated;
-
-        // Réinitialisation stricte en phase d'observation avec compteurs remis à 0
-        newPhase = 'OBSERVATION';
-        newBetColor = null;
-        newCurrentStep = 0;
+        newPhase = 'BETTING';
+        newCurrentStep = 1;
         newCycleLossAccumulated = 0;
-        newConsecutiveColor = null;
-        newConsecutiveCount = 0;
+      } else if (strat === 'dalembert') {
+        // D'ALEMBERT : +1 unité sur perte
+        newCurrentStep = Math.min(state.config.maxSteps, stepIdx + 1);
+        cycleEvent = 'PROGRESSION';
+        newPhase = 'BETTING';
+      } else if (strat === 'fibonacci') {
+        // FIBONACCI : +1 cran dans la suite
+        newCurrentStep = Math.min(state.config.maxSteps, stepIdx + 1);
+        cycleEvent = 'PROGRESSION';
+        newPhase = 'BETTING';
+      } else {
+        // MARTINGALE
+        if (stepIdx < state.config.maxSteps) {
+          // Progression au palier suivant
+          newCurrentStep = stepIdx + 1;
+          cycleEvent = 'PROGRESSION';
+        } else {
+          // PLAFOND ATTEINT : STOP-LOSS
+          cycleEvent = 'CRASH_STOP_LOSS';
+          roundCycleProfit = -newCycleLossAccumulated;
+
+          cycleStats.totalCycles++;
+          cycleStats.cyclesLost++;
+          cycleStats.totalLossFromCrashes += newCycleLossAccumulated;
+
+          // Réinitialisation stricte en phase d'observation avec compteurs remis à 0
+          newPhase = 'OBSERVATION';
+          newBetColor = null;
+          newCurrentStep = 0;
+          newCycleLossAccumulated = 0;
+          newConsecutiveColor = null;
+          newConsecutiveCount = 0;
+        }
       }
     }
   }

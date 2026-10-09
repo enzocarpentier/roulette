@@ -7,7 +7,16 @@ export interface RouletteNumber {
 
 export type StrategyPhase = 'OBSERVATION' | 'BETTING';
 
+export type StrategyType =
+  | 'martingale_observation'
+  | 'paroli'
+  | 'dalembert'
+  | 'fibonacci'
+  | 'romanosky'
+  | 'james_bond';
+
 export interface StrategyConfig {
+  strategyType?: StrategyType;
   initialBankroll: number;
   baseBet: number; // 5 €
   consecutiveTrigger: number; // 2 consécutifs
