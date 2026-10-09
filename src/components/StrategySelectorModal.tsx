@@ -4,22 +4,13 @@ import {
   StrategyDefinition,
   StrategyKey,
 } from '../constants/strategies';
-import { StrategyConfig } from '../types/roulette';
 import {
-  Compass,
   X,
-  ShieldCheck,
-  Zap,
-  TrendingUp,
-  AlertTriangle,
   ChevronRight,
   Sparkles,
   Check,
-  Sliders,
-  DollarSign,
   Scale,
-  Crosshair,
-  Award,
+  Lightbulb,
 } from 'lucide-react';
 
 interface StrategySelectorModalProps {
@@ -222,9 +213,26 @@ export const StrategySelectorModal: React.FC<StrategySelectorModalProps> = ({
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 font-medium mb-4 leading-relaxed">
+                  <p className="text-xs text-slate-300 font-medium mb-3 leading-relaxed">
                     {strat.tagline}
                   </p>
+
+                  {/* Explication Simple & Pédagogique */}
+                  <div className="mb-4 p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-slate-950/40 border border-amber-500/25">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1 rounded-lg bg-amber-500/20 text-amber-300 shrink-0 mt-0.5">
+                        <Lightbulb className="w-3.5 h-3.5 text-amber-300" />
+                      </div>
+                      <div className="text-xs leading-relaxed text-slate-200">
+                        <span className="font-black text-amber-300 block mb-1 text-[11px] uppercase tracking-wider">
+                          💡 En clair (Comment ça marche) :
+                        </span>
+                        <p className="text-slate-300 leading-normal">
+                          {strat.simpleExplanation}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Metrics Grid */}
                   <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-xs mb-4">

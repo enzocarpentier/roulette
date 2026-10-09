@@ -38,6 +38,7 @@ import {
   BarChart2,
   Terminal,
   Compass,
+  Lightbulb,
 } from 'lucide-react';
 
 export default function App() {
@@ -403,6 +404,44 @@ export default function App() {
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Recharger & Réinitialiser
+            </button>
+          </div>
+        )}
+
+        {/* BANNIÈRE STRATÉGIE ACTIVE & EXPLICATION SIMPLE */}
+        {STRATEGY_DEFINITIONS[selectedStrategyKey] && (
+          <div className="p-4 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 shadow-sm">
+                <Compass className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    Stratégie Active
+                  </span>
+                  <h2 className="text-sm font-black text-white">
+                    {STRATEGY_DEFINITIONS[selectedStrategyKey].name}
+                  </h2>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {STRATEGY_DEFINITIONS[selectedStrategyKey].badge}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5 text-xs text-slate-300 pt-0.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    <strong className="text-amber-300 font-bold">En clair : </strong>
+                    {STRATEGY_DEFINITIONS[selectedStrategyKey].simpleExplanation}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowStrategySelector(true)}
+              className="self-start md:self-center shrink-0 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition shadow-md shadow-amber-500/20 cursor-pointer flex items-center gap-1.5"
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Changer de stratégie</span>
             </button>
           </div>
         )}

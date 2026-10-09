@@ -12,9 +12,10 @@ export interface StrategyDefinition {
   id: StrategyKey;
   name: string;
   tagline: string;
+  simpleExplanation: string;
   badge: string;
   badgeTheme: 'purple' | 'emerald' | 'blue' | 'amber' | 'indigo' | 'rose';
-  riskLevel: 'FAIBLE' | 'MODÉRÉ' | 'ÉLEVÉ';
+  riskLevel: 'FAIBLE' | 'MODÉRÉ' | 'ÉLEVÉ' | 'ASYMÉTRIQUE';
   riskScore: number; // 1 to 5
   shortTermWinRate: string;
   recommendedBankroll: number;
@@ -31,6 +32,8 @@ export const STRATEGY_DEFINITIONS: Record<StrategyKey, StrategyDefinition> = {
     id: 'martingale_observation',
     name: 'Martingale avec Observation (Votre Stratégie)',
     tagline: 'Attente de 2 couleurs identiques, doublement sur l\'opposé et plafond strict à 640 €',
+    simpleExplanation:
+      'Tu ne joues rien au début : tu attends patiemment que 2 Noirs (ou 2 Rouges) sortent d\'affilée. Dès que ça arrive, tu paries 5 € sur l\'autre couleur. Si tu perds, tu doubles (10 €, 20 €, 40 €...) jusqu\'à 640 € maximum. Dès que tu gagnes un coup, tu empoches 5 € net et tu réattends sagement 2 nouvelles couleurs.',
     badge: 'Personnalisée & Active',
     badgeTheme: 'purple',
     riskLevel: 'ÉLEVÉ',
@@ -72,6 +75,8 @@ export const STRATEGY_DEFINITIONS: Record<StrategyKey, StrategyDefinition> = {
     id: 'paroli',
     name: 'Système Paroli (Martingale Inversée)',
     tagline: 'Capital protégé : on ne double QUE sur les victoires jusqu\'à 3 gains consécutifs',
+    simpleExplanation:
+      'Tu paries toujours 10 €. Si tu perds, tu ne doubles JAMAIS (tu ne perds que tes 10 €). Mais si tu gagnes, tu réinvestis le gain en doublant : 10 € ➔ 20 € ➔ 40 €. Si tu alignes 3 victoires de suite, tu empoches le pactole de +70 € net et tu recommences tranquillement à 10 €.',
     badge: 'Préféré des Pros',
     badgeTheme: 'emerald',
     riskLevel: 'FAIBLE',
@@ -112,6 +117,8 @@ export const STRATEGY_DEFINITIONS: Record<StrategyKey, StrategyDefinition> = {
     id: 'dalembert',
     name: 'Système D\'Alembert',
     tagline: 'Progression linéaire douce : +1 unité après une perte, -1 unité après un gain',
+    simpleExplanation:
+      'La méthode la plus zen : tu commences à 10 €. Si tu perds un tour, tu augmentes juste de +10 €. Si tu gagnes un tour, tu diminues de -10 €. Ta mise monte et descend doucement sans jamais exploser, et tu es en bénéfice dès que tu as autant de victoires que de défaites.',
     badge: 'Équilibre & Stabilité',
     badgeTheme: 'blue',
     riskLevel: 'MODÉRÉ',
@@ -152,6 +159,8 @@ export const STRATEGY_DEFINITIONS: Record<StrategyKey, StrategyDefinition> = {
     id: 'fibonacci',
     name: 'Suite de Fibonacci',
     tagline: 'Progression naturelle (1, 1, 2, 3, 5, 8, 13...) avec recul de 2 crans en cas de gain',
+    simpleExplanation:
+      'Tu suis la suite magique des nombres : 5 €, 5 €, 10 €, 15 €, 25 €, 40 €, 65 €... Si tu perds, tu avances d\'un cran dans la liste. Si tu gagnes, tu recules de 2 crans en arrière. Le secret : une seule victoire efface deux pertes passées, donc tu gagnes de l\'argent même en perdant la majorité des tours !',
     badge: 'Mathématique Célèbre',
     badgeTheme: 'amber',
     riskLevel: 'MODÉRÉ',
@@ -192,6 +201,8 @@ export const STRATEGY_DEFINITIONS: Record<StrategyKey, StrategyDefinition> = {
     id: 'romanosky',
     name: 'Système Romanosky (Couverture 86,5%)',
     tagline: 'Couvre 32 numéros sur 37 à chaque tirage (2 douzaines + 2 carrés)',
+    simpleExplanation:
+      'Tu couvres presque tout le tapis : tu poses 80 € au total pour couvrir 32 numéros sur 37. Tu gagnes dans 86,5 % des cas (+10 € par tour !). C\'est parfait pour gagner très souvent, mais attention : si l\'un des 5 numéros non couverts sort, tu perds tes 80 € d\'un coup.',
     badge: '86,5% de Victoire / Tirage',
     badgeTheme: 'indigo',
     riskLevel: 'ASYMÉTRIQUE',
@@ -234,6 +245,8 @@ export const STRATEGY_DEFINITIONS: Record<StrategyKey, StrategyDefinition> = {
     id: 'james_bond',
     name: 'Stratégie James Bond 007',
     tagline: 'Mise plate légendaire couvrant 25 numéros sur 37 (Passe, Sixain et Zéro)',
+    simpleExplanation:
+      'La mise culte de 007 : tu poses 20 € répartis sur plus des deux tiers de la table (14 € sur les grands chiffres 19-36, 5 € sur 13-18, et 1 € sur le Zéro vert). Tu as 68 % de chances de gagner à chaque tirage. Seuls les chiffres 1 à 12 te font perdre.',
     badge: 'Culte & Rapide',
     badgeTheme: 'rose',
     riskLevel: 'MODÉRÉ',

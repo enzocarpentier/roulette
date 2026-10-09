@@ -12,11 +12,6 @@ import {
   Trash2,
   Terminal,
   Filter,
-  Eye,
-  Coins,
-  TrendingUp,
-  AlertTriangle,
-  RotateCcw,
 } from 'lucide-react';
 
 interface ActionLogsPanelProps {
