@@ -178,10 +178,18 @@ export function stepEngine(
     const stepIdx = state.currentStep;
     betAmount = state.config.betProgression[stepIdx - 1] || state.config.betProgression[state.config.betProgression.length - 1];
 
-    // Vérifier si la bankroll permet de miser
+    // Vérifier si la bankroll permet de miser la somme requise pour ce palier
     if (newBankroll < betAmount) {
-      // Ne peut pas miser la somme requise
-      isBroke = true;
+      // Le joueur ne peut pas doubler (fonds insuffisants pour ce palier, ex: 640 € requis alors qu'il reste 365 €)
+      // La séquence s'arrête en Stop-Loss prématuré
+      roundCycleProfit = -newCycleLossAccumulated;
+      cycleStats.totalCycles++;
+      cycleStats.cyclesLost++;
+      cycleStats.totalLossFromCrashes += newCycleLossAccumulated;
+
+      const playerCanKeepPlaying = newBankroll >= state.config.baseBet;
+      const isPlayerBroke = !playerCanKeepPlaying;
+
       const roundLog: RoundLog = {
         spinIndex: nextSpinIndex,
         number: rolledNumber,
@@ -194,16 +202,34 @@ export function stepEngine(
         stepIndex: stepIdx,
         outcome: 'SKIPPED',
         netProfitRound: 0,
-        cycleProfit: 0,
+        cycleProfit: roundCycleProfit,
         bankroll: newBankroll,
         cycleEvent: 'CRASH_STOP_LOSS',
       };
+
       return {
         newState: {
           ...state,
-          isBroke: true,
+          bankroll: newBankroll,
+          phase: 'OBSERVATION',
+          consecutiveColor: rolledColor === 'green' ? null : rolledColor,
+          consecutiveCount: rolledColor === 'green' ? 0 : 1,
+          betColor: null,
+          currentStep: 0,
+          cycleLossAccumulated: 0,
+          isBroke: isPlayerBroke,
           spinIndex: nextSpinIndex,
           history: [roundLog, ...state.history.slice(0, 199)],
+          stats: {
+            ...state.stats,
+            totalSpins: nextSpinIndex,
+            spinsObserved: state.stats.spinsObserved + 1,
+            currentBankroll: newBankroll,
+            cycles: cycleStats,
+            redCount,
+            blackCount,
+            greenCount,
+          },
         },
         roundLog,
       };
@@ -454,9 +480,20 @@ export function runMonteCarloSimulation(
         const bet = progression[currentStep - 1] || progression[progression.length - 1];
 
         if (bankroll < bet) {
-          isBroke = true;
-          bankroll = 0;
-          break;
+          // Fonds insuffisants pour ce palier (ex: le joueur a 365 € mais la mise demandée est 640 €)
+          // La séquence s'arrête en Stop-Loss : le joueur conserve ses fonds restants
+          crashesCount++;
+          phase = 0;
+          currentStep = 0;
+          streakColor = rollColor;
+          streakCount = rollColor === 0 ? 0 : 1;
+
+          // Le joueur n'est en faillite que s'il n'a même plus de quoi payer la mise de départ (ex: < 5 €)
+          if (bankroll < progression[0]) {
+            isBroke = true;
+            break;
+          }
+          continue;
         }
 
         if (rollColor === targetColor) {
@@ -486,16 +523,15 @@ export function runMonteCarloSimulation(
         const dd = peak - bankroll;
         if (dd > maxDrawdown) maxDrawdown = dd;
 
-        if (bankroll <= 0) {
+        if (bankroll < progression[0]) {
           isBroke = true;
-          bankroll = 0;
           break;
         }
       }
     }
 
     const netProfit = bankroll - initialBankroll;
-    if (isBroke || bankroll <= 0) ruinCount++;
+    if (isBroke || bankroll < progression[0]) ruinCount++;
     if (netProfit > 0) profitableRuns++;
 
     totalFinalBankroll += bankroll;

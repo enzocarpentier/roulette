@@ -14,11 +14,15 @@ import { CycleStats } from '../types/roulette';
 interface StepDistributionChartProps {
   cycles: CycleStats;
   maxSteps: number;
+  baseBet?: number;
+  maxLoss?: number;
 }
 
 export const StepDistributionChart: React.FC<StepDistributionChartProps> = ({
   cycles,
   maxSteps,
+  baseBet = 5,
+  maxLoss = 1275,
 }) => {
   const chartData = [];
 
@@ -50,11 +54,11 @@ export const StepDistributionChart: React.FC<StepDistributionChartProps> = ({
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-            <span className="text-slate-300">Cycles Gagnés (+5€)</span>
+            <span className="text-slate-300">Cycles Gagnés (+{baseBet}€)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-red-500" />
-            <span className="text-slate-300">Plafond Dépassé (-1 275€)</span>
+            <span className="text-slate-300">Plafond Dépassé (-{maxLoss}€)</span>
           </div>
         </div>
       </div>

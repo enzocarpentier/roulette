@@ -405,6 +405,8 @@ export default function App() {
                   <StepDistributionChart
                     cycles={engineState.stats.cycles}
                     maxSteps={config.maxSteps}
+                    baseBet={config.baseBet}
+                    maxLoss={config.betProgression.reduce((a, b) => a + b, 0)}
                   />
                 </div>
               </div>
@@ -420,6 +422,8 @@ export default function App() {
                 <StepDistributionChart
                   cycles={engineState.stats.cycles}
                   maxSteps={config.maxSteps}
+                  baseBet={config.baseBet}
+                  maxLoss={config.betProgression.reduce((a, b) => a + b, 0)}
                 />
               </div>
             )}

@@ -235,6 +235,7 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
               >
                 <option value={500}>500 €</option>
                 <option value={1000}>1 000 € (défaut)</option>
+                <option value={maxLossSequence}>{maxLossSequence.toLocaleString()} € ({progressionPreview.length} paliers complets)</option>
                 <option value={1500}>1 500 €</option>
                 <option value={3000}>3 000 €</option>
                 <option value={5000}>5 000 €</option>
@@ -243,29 +244,48 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
             </div>
           </div>
 
-          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 border-t border-slate-800">
-            <div>
-              Volume total du test :{' '}
-              <strong className="text-white">
-                {(runsCount * spinsPerRun).toLocaleString()} tirages simulés
-              </strong>{' '}
-              • Plafond : <strong className="text-amber-400">640 €</strong> ({progressionPreview.length} paliers / Perte max séquence : -{maxLossSequence.toLocaleString()} €)
+          <div className="pt-2 flex flex-col gap-2 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+              <div>
+                Volume total du test :{' '}
+                <strong className="text-white">
+                  {(runsCount * spinsPerRun).toLocaleString()} tirages simulés
+                </strong>{' '}
+                • Plafond : <strong className="text-amber-400">640 €</strong> ({progressionPreview.length} paliers / Perte max séquence : -{maxLossSequence.toLocaleString()} €)
+              </div>
+
+              <button
+                onClick={handleRunSimulation}
+                disabled={isRunning}
+                className="py-2.5 px-6 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-xs flex items-center gap-2 transition shadow-lg shadow-purple-900/30 cursor-pointer"
+              >
+                {isRunning ? (
+                  <span className="animate-pulse">Calcul de millions de tours...</span>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-current" />
+                    Lancer le Test Extrême
+                  </>
+                )}
+              </button>
             </div>
 
-            <button
-              onClick={handleRunSimulation}
-              disabled={isRunning}
-              className="py-2.5 px-6 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-xs flex items-center gap-2 transition shadow-lg shadow-purple-900/30 cursor-pointer"
-            >
-              {isRunning ? (
-                <span className="animate-pulse">Calcul de millions de tours...</span>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 fill-current" />
-                  Lancer le Test Extrême
-                </>
-              )}
-            </button>
+            {/* Note pédagogique sur l'absorption de la séquence par le capital */}
+            {initialBankroll < maxLossSequence ? (
+              <div className="text-[11px] text-amber-300/90 flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>
+                  <strong>Information Capital :</strong> Avec {initialBankroll.toLocaleString()} € de capital, vous absorbez jusqu'au 7ème palier (320 €). Pour financer les 8 paliers complets jusqu'au plafond de 640 € dès le départ, il faut un capital de {maxLossSequence.toLocaleString()} €. Si une série de pertes survient, la séquence s'arrête en Stop-Loss dès que vos fonds restants ne permettent plus de doubler.
+                </span>
+              </div>
+            ) : (
+              <div className="text-[11px] text-emerald-300/90 flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl">
+                <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>
+                  <strong>Capital Optimal :</strong> Vos {initialBankroll.toLocaleString()} € permettent d'absorber l'intégralité des {progressionPreview.length} paliers jusqu'au plafond de 640 € (-{maxLossSequence.toLocaleString()} €).
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -332,14 +352,14 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
                 <span className="text-slate-400">Meilleur résultat individuel :</span>
                 <div className="text-base font-black text-emerald-400 mt-0.5">
-                  +{result.summary.bestOutcome.toLocaleString()} €
+                  {result.summary.bestOutcome >= 0 ? `+${result.summary.bestOutcome.toLocaleString()}` : `${result.summary.bestOutcome.toLocaleString()}`} €
                 </div>
               </div>
 
               <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
                 <span className="text-slate-400">Pire résultat individuel :</span>
                 <div className="text-base font-black text-red-400 mt-0.5">
-                  {result.summary.worstOutcome.toLocaleString()} €
+                  {result.summary.worstOutcome > 0 ? `+${result.summary.worstOutcome.toLocaleString()}` : `${result.summary.worstOutcome.toLocaleString()}`} €
                 </div>
               </div>
 
