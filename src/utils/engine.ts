@@ -212,8 +212,8 @@ export function stepEngine(
           ...state,
           bankroll: newBankroll,
           phase: 'OBSERVATION',
-          consecutiveColor: rolledColor === 'green' ? null : rolledColor,
-          consecutiveCount: rolledColor === 'green' ? 0 : 1,
+          consecutiveColor: null,
+          consecutiveCount: 0,
           betColor: null,
           currentStep: 0,
           cycleLossAccumulated: 0,
@@ -254,15 +254,13 @@ export function stepEngine(
       cycleStats.stepWinDistribution[stepIdx] = (cycleStats.stepWinDistribution[stepIdx] || 0) + 1;
       cycleStats.totalProfitFromWins += roundCycleProfit;
 
-      // Retour immédiat en phase d'observation
+      // Retour immédiat en phase d'observation : remise stricte des compteurs à 0
       newPhase = 'OBSERVATION';
       newBetColor = null;
       newCurrentStep = 0;
       newCycleLossAccumulated = 0;
-
-      // La couleur qui vient de sortir initialise l'observation
-      newConsecutiveColor = rolledColor;
-      newConsecutiveCount = 1;
+      newConsecutiveColor = null;
+      newConsecutiveCount = 0;
     } else {
       // PERTE
       roundOutcome = 'LOSS';
@@ -293,19 +291,13 @@ export function stepEngine(
         cycleStats.cyclesLost++;
         cycleStats.totalLossFromCrashes += newCycleLossAccumulated;
 
-        // Réinitialisation stricte en phase d'observation
+        // Réinitialisation stricte en phase d'observation avec compteurs remis à 0
         newPhase = 'OBSERVATION';
         newBetColor = null;
         newCurrentStep = 0;
         newCycleLossAccumulated = 0;
-
-        if (rolledColor === 'green') {
-          newConsecutiveColor = null;
-          newConsecutiveCount = 0;
-        } else {
-          newConsecutiveColor = rolledColor;
-          newConsecutiveCount = 1;
-        }
+        newConsecutiveColor = null;
+        newConsecutiveCount = 0;
       }
     }
   }
@@ -485,8 +477,8 @@ export function runMonteCarloSimulation(
           crashesCount++;
           phase = 0;
           currentStep = 0;
-          streakColor = rollColor;
-          streakCount = rollColor === 0 ? 0 : 1;
+          streakColor = 0;
+          streakCount = 0;
 
           // Le joueur n'est en faillite que s'il n'a même plus de quoi payer la mise de départ (ex: < 5 €)
           if (bankroll < progression[0]) {
@@ -497,25 +489,25 @@ export function runMonteCarloSimulation(
         }
 
         if (rollColor === targetColor) {
-          // Gain
+          // Gain : remise stricte des compteurs d'observation à 0
           bankroll += bet;
           wonCount++;
           phase = 0;
           currentStep = 0;
-          streakColor = rollColor;
-          streakCount = 1;
+          streakColor = 0;
+          streakCount = 0;
         } else {
           // Perte
           bankroll -= bet;
           if (currentStep < maxSteps) {
             currentStep++;
           } else {
-            // Plafond de mise atteint (Crash)
+            // Plafond de mise atteint (Crash) : remise des compteurs à 0
             crashesCount++;
             phase = 0;
             currentStep = 0;
-            streakColor = rollColor;
-            streakCount = rollColor === 0 ? 0 : 1;
+            streakColor = 0;
+            streakCount = 0;
           }
         }
 
