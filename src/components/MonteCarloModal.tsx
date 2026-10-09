@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StrategyConfig, MonteCarloSummary, MonteCarloRun } from '../types/roulette';
 import { runMonteCarloSimulation } from '../utils/engine';
 import { computeProgression } from '../constants/roulette';
+import { logger } from '../utils/actionLogger';
 import {
   Play,
   X,
@@ -65,6 +66,25 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({ isOpen, onClos
       const simResult = runMonteCarloSimulation(testConfig, runsCount, spinsPerRun);
       setResult(simResult);
       setIsRunning(false);
+
+      logger.log(
+        'CONFIG',
+        `Stress-Test Monte Carlo exécuté (${runsCount.toLocaleString()} joueurs x ${spinsPerRun.toLocaleString()} tours)`,
+        {
+          details: `Mise base : ${baseBet} € | Trigger : ${consecutiveTrigger} | Capital : ${initialBankroll} € | Ruine : ${simResult.summary.ruinRate.toFixed(1)}% | Profit : ${simResult.summary.profitableRate.toFixed(1)}% | Solde moyen : ${Math.round(simResult.summary.averageFinalBankroll).toLocaleString()} €`,
+          data: {
+            runsCount,
+            spinsPerRun,
+            baseBet,
+            consecutiveTrigger,
+            initialBankroll,
+            ruinRate: simResult.summary.ruinRate,
+            profitableRate: simResult.summary.profitableRate,
+            averageFinalBankroll: simResult.summary.averageFinalBankroll,
+            totalCrashes: simResult.summary.totalCrashes,
+          },
+        }
+      );
     }, 40);
   };
 

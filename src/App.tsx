@@ -21,7 +21,9 @@ import { HistoryTable } from './components/HistoryTable';
 import { MonteCarloModal } from './components/MonteCarloModal';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { ProvablyFairModal } from './components/ProvablyFairModal';
+import { ActionLogsModal, ActionLogsPanel } from './components/ActionLogsModal';
 import { DevFeedbackOverlay } from './components/DevFeedbackOverlay';
+import { logger, logRoundEvent } from './utils/actionLogger';
 import {
   BarChart3,
   Database,
@@ -32,6 +34,7 @@ import {
   TrendingUp,
   ListFilter,
   BarChart2,
+  Terminal,
 } from 'lucide-react';
 
 export default function App() {
@@ -50,7 +53,7 @@ export default function App() {
   const [playSpeed, setPlaySpeed] = useState<number>(300);
 
   // Onglet actif pour la partie inférieure (évite la surcharge visuelle)
-  const [activeTab, setActiveTab] = useState<'table' | 'chart' | 'history' | 'stats'>('table');
+  const [activeTab, setActiveTab] = useState<'table' | 'chart' | 'history' | 'stats' | 'logs'>('table');
 
   // Provably Fair Cryptographic Seeds
   const [serverSeed, setServerSeed] = useState<string>('');
@@ -61,8 +64,23 @@ export default function App() {
   const [showMonteCarlo, setShowMonteCarlo] = useState<boolean>(false);
   const [showSupabase, setShowSupabase] = useState<boolean>(false);
   const [showProvablyFair, setShowProvablyFair] = useState<boolean>(false);
+  const [showActionLogs, setShowActionLogs] = useState<boolean>(false);
+  const [logsCount, setLogsCount] = useState<number>(0);
 
   const autoPlayRef = useRef<number | null>(null);
+
+  // Synchronisation des logs en temps réel
+  useEffect(() => {
+    return logger.subscribe((l) => setLogsCount(l.length));
+  }, []);
+
+  // Log de démarrage initial
+  useEffect(() => {
+    logger.log('SESSION', 'Démarrage de la session', {
+      details: `Capital de départ : ${DEFAULT_STRATEGY_CONFIG.initialBankroll} € | Mise de départ : ${DEFAULT_STRATEGY_CONFIG.baseBet} € | Plafond : 640 € | Trigger d'observation : ${DEFAULT_STRATEGY_CONFIG.consecutiveTrigger}`,
+      bankroll: DEFAULT_STRATEGY_CONFIG.initialBankroll,
+    });
+  }, []);
 
   // Initialisation des graines cryptographiques
   useEffect(() => {
@@ -93,6 +111,10 @@ export default function App() {
     setEngineState(freshEngine);
     setLastRolledNumber(null);
     setBankrollCurve([{ spin: 0, bankroll: newConfig.initialBankroll, netProfit: 0 }]);
+    logger.log('CONFIG', `Mise de départ modifiée : ${newBaseBet} €`, {
+      details: `Progression recalculée : ${newProgression.join(' -> ')} € (Plafond 640 € / ${newProgression.length} paliers). Session réinitialisée.`,
+      bankroll: freshEngine.bankroll,
+    });
   };
 
   // Changement direct du capital de départ
@@ -108,6 +130,10 @@ export default function App() {
     setEngineState(freshEngine);
     setLastRolledNumber(null);
     setBankrollCurve([{ spin: 0, bankroll: newBankroll, netProfit: 0 }]);
+    logger.log('CONFIG', `Capital initial modifié : ${newBankroll.toLocaleString()} €`, {
+      details: `Capital réajusté. Session réinitialisée.`,
+      bankroll: newBankroll,
+    });
   };
 
   // Changement direct du déclencheur d'observation (tours consécutifs avant de jouer)
@@ -123,6 +149,10 @@ export default function App() {
     setEngineState(freshEngine);
     setLastRolledNumber(null);
     setBankrollCurve([{ spin: 0, bankroll: newConfig.initialBankroll, netProfit: 0 }]);
+    logger.log('CONFIG', `Déclencheur d'observation modifié : ${newTrigger} consécutifs`, {
+      details: `Attente de ${newTrigger} sorties consécutives de la même couleur avant de miser. Session réinitialisée.`,
+      bankroll: freshEngine.bankroll,
+    });
   };
 
   // Exécuter 1 tour
@@ -131,6 +161,7 @@ export default function App() {
 
     setIsSpinning(true);
     const { newState, roundLog } = stepEngine(engineState, forcedNum);
+    logRoundEvent(roundLog, newState);
     setLastRolledNumber(roundLog.number);
     setEngineState(newState);
 
@@ -158,6 +189,11 @@ export default function App() {
     }
     setEngineState(finalState);
     setBankrollCurve((prev) => [...prev, ...newCurve.slice(1)]);
+    logger.log('SPIN', `Lot rapide de ${count} tours exécuté (Tour #${engineState.spinIndex + 1} à #${finalState.spinIndex})`, {
+      details: `Solde final : ${finalState.bankroll} € (Profit net: ${finalState.stats.netProfit >= 0 ? '+' : ''}${finalState.stats.netProfit} €) | Cycles gagnés : ${finalState.stats.cycles.cyclesWon} | Crashs : ${finalState.stats.cycles.cyclesLost}`,
+      bankroll: finalState.bankroll,
+      spinIndex: finalState.spinIndex,
+    });
   };
 
   // Réinitialiser la session
@@ -168,12 +204,22 @@ export default function App() {
     setEngineState(initial);
     setLastRolledNumber(null);
     setBankrollCurve([{ spin: 0, bankroll: config.initialBankroll, netProfit: 0 }]);
+    logger.log('SESSION', 'Session réinitialisée', {
+      details: `Solde remis à ${config.initialBankroll} €`,
+      bankroll: config.initialBankroll,
+    });
   };
 
   // Gestion de la lecture continue
   const togglePlay = () => {
     if (engineState.isBroke) return;
-    setIsPlaying((prev) => !prev);
+    const willPlay = !isPlaying;
+    setIsPlaying(willPlay);
+    logger.log('SESSION', willPlay ? 'Lecture automatique (Auto-Play) démarrée' : 'Lecture automatique mise en pause', {
+      details: willPlay ? `Vitesse : ${playSpeed} ms / tour` : 'Arrêt manuel par l\'utilisateur',
+      bankroll: engineState.bankroll,
+      spinIndex: engineState.spinIndex,
+    });
   };
 
   useEffect(() => {
@@ -186,6 +232,7 @@ export default function App() {
             return current;
           }
           const { newState, roundLog } = stepEngine(current);
+          logRoundEvent(roundLog, newState);
           setLastRolledNumber(roundLog.number);
           setBankrollCurve((prev) => [
             ...prev,
@@ -260,6 +307,15 @@ export default function App() {
             >
               <Database className="w-3.5 h-3.5 text-emerald-400" />
               <span>Sauvegarder</span>
+            </button>
+
+            <button
+              onClick={() => setShowActionLogs(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 text-xs font-bold transition shadow-sm cursor-pointer"
+              title="Ouvrir le journal complet des logs d'actions"
+            >
+              <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Logs Dev ({logsCount})</span>
             </button>
           </div>
         </div>
@@ -381,6 +437,18 @@ export default function App() {
               <BarChart2 className="w-4 h-4 text-amber-400" />
               Totem & Stats Casino
             </button>
+
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold transition cursor-pointer ${
+                activeTab === 'logs'
+                  ? 'bg-slate-900 border-t-2 border-cyan-500 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Terminal className="w-4 h-4 text-cyan-400" />
+              Logs Dev ({logsCount})
+            </button>
           </div>
 
           {/* Contenu selon l'onglet actif */}
@@ -427,6 +495,10 @@ export default function App() {
                 />
               </div>
             )}
+
+            {activeTab === 'logs' && (
+              <ActionLogsPanel />
+            )}
           </div>
         </div>
       </main>
@@ -457,6 +529,10 @@ export default function App() {
         nonce={engineState.spinIndex}
         onUpdateClientSeed={setClientSeed}
         onRotateServerSeed={handleRotateServerSeed}
+      />
+      <ActionLogsModal
+        isOpen={showActionLogs}
+        onClose={() => setShowActionLogs(false)}
       />
 
       {/* Système d'annotation et commentaires dev n'importe où sur l'app */}
