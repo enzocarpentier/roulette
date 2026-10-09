@@ -74,8 +74,12 @@ export default function App() {
     return logger.subscribe((l) => setLogsCount(l.length));
   }, []);
 
-  // Log de démarrage initial
+  const hasLoggedInitRef = useRef<boolean>(false);
+
+  // Log de démarrage initial (unique)
   useEffect(() => {
+    if (hasLoggedInitRef.current) return;
+    hasLoggedInitRef.current = true;
     logger.log('SESSION', 'Démarrage de la session', {
       details: `Capital de départ : ${DEFAULT_STRATEGY_CONFIG.initialBankroll} € | Mise de départ : ${DEFAULT_STRATEGY_CONFIG.baseBet} € | Plafond : 640 € | Trigger d'observation : ${DEFAULT_STRATEGY_CONFIG.consecutiveTrigger}`,
       bankroll: DEFAULT_STRATEGY_CONFIG.initialBankroll,
